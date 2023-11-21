@@ -28,12 +28,12 @@ float setCellHeight(const string& filename){
     width = colCount * 32;
     height = (rowCount * 32) + 100;
     file.close();
-    cellHeight = (float)(width / rowCount);
+    cellHeight = (float)(width / colCount);
     return cellHeight;
 }
 
-//const float CELLHEIGHT = setCellHeight("files/config.cfg");
-const float CELLHEIGHT = 32.0f;
+const float CELLHEIGHT = setCellHeight("files/config.cfg");
+
 
 void setDimen(int &width, int &height, const string &filename){
     int rowCount;
@@ -79,6 +79,7 @@ sf::Texture& getTexture(std::string textureName) {
 sf::Texture hiddenCell = getTexture("tile_hidden");
 void Cell::DrawCell(float x, float y) {
     this->cellRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
+//    cellRect.setOrigin(cellRect.getSize().x / 2.0f, cellRect.getSize().y / 2.0f);
     this->cellRect.setTexture(&hiddenCell);
     this->cellRect.setPosition(x, y);
 }
@@ -110,18 +111,21 @@ void Board::generateBoard(){
 
 void Board::drawBoard(sf::RenderWindow &window) {
     std::cout << "Before drawing the board\n";
-    for (int i = 0; i < _rows; i++){
-        for(int j = 0; j < _cols; j++){
 
-            float x = i * CELLHEIGHT;
-            float y = j * CELLHEIGHT;
+    for (int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++) {
+            float x = j * CELLHEIGHT;
+            float y = i * CELLHEIGHT;
+
             cout << "Drawing cell at (" << x << ", " << y << ")\n";
+
             grid[i][j].DrawCell(x, y);
 
             window.draw(grid[i][j].cellRect);
         }
     }
 }
+
 
 sf::Text makeText(const sf::Font& font, const string& input, int charSize, sf::Color color){
     sf::Text text;
@@ -228,9 +232,10 @@ int main() {
 
         window.draw(nameText);
 
+        setText(userName, width / 2, (height / 2) - 45);
         window.draw(userName);
 
-        cursor.setPosition(userName.getPosition().x + userName.getGlobalBounds().width, userName.getPosition().y);
+        cursor.setPosition(userName.getPosition().x + userName.getGlobalBounds().width / 2, userName.getPosition().y - 10);
         if (letterCount < 10) {
             window.draw(cursor);
         }
@@ -251,7 +256,6 @@ int main() {
         }
         gameWindow.clear(sf::Color::White);
 
-        // draw on new Window???; that way, I can make it smaller without having specific dimensions.
         board.drawBoard(gameWindow);
 
         gameWindow.display();
