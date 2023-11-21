@@ -13,9 +13,28 @@
 #include <unordered_map>
 #include <string>
 
-void TwoDimArray(int rows, int cols){
+using namespace std;
 
-}
+class Cell{
+    bool _revealed;
+    bool _hasFlag;
+    bool _hasMine;
+    int _numMines;
+    int _numTiles;
+public:
+    Cell(){};
+    void DrawCell(float x, float y);
+
+    sf::RectangleShape cellRect;
+};
+
 class Board{
-
+    int _rows = 0;
+    int _cols = 0;
+    vector<vector<Cell>> grid;
+public:
+    Board(){};
+    void setDimen(const string& fileName);
+    void generateBoard();
+    void drawBoard(sf::RenderWindow &window);
 };

@@ -1,10 +1,39 @@
 #include <iostream>
 #include <fstream>
 #include <SFML/Graphics.hpp>
+#include "minesweeper.h"
 
 using namespace std;
 // Welcome Window: 15 PTS
 // board changes size & numMines based on values in board_config.cfg: 10 PTS
+float setCellHeight(const string& filename){
+    int width;
+    int height;
+    int rowCount;
+    int colCount;
+    float cellHeight;
+    string line;
+    ifstream file(filename);
+    if (!file.is_open()){
+        cout << "The board config file is not open.";
+        return 0;
+    }
+    else {
+        getline(file, line);
+        colCount = stoi(line);
+
+        getline(file, line);
+        rowCount = stoi(line);
+    }
+    width = colCount * 32;
+    height = (rowCount * 32) + 100;
+    file.close();
+    cellHeight = (float)(width / rowCount);
+    return cellHeight;
+}
+
+//const float CELLHEIGHT = setCellHeight("files/config.cfg");
+const float CELLHEIGHT = 32.0f;
 
 void setDimen(int &width, int &height, const string &filename){
     int rowCount;
@@ -16,15 +45,82 @@ void setDimen(int &width, int &height, const string &filename){
         return;
     }
     else {
-       getline(file, line);
-       colCount = stoi(line);
+        getline(file, line);
+        colCount = stoi(line);
 
-       getline(file, line);
-       rowCount = stoi(line);
+        getline(file, line);
+        rowCount = stoi(line);
     }
     width = colCount * 32;
     height = (rowCount * 32) + 100;
     file.close();
+}
+
+
+// Texture manager functions
+unordered_map<string, sf::Texture> textures;
+sf::Texture& getTexture(std::string textureName) {
+    auto result = textures.find(textureName);
+    if (result == textures.end()){
+        sf::Texture newTexture;
+        newTexture.loadFromFile("images/" + textureName + ".png");
+        if(!newTexture.loadFromFile("images/" + textureName + ".png")){
+            cout << "Texture loading error." << endl;
+        }
+        textures[textureName] = newTexture;
+        return textures[textureName];
+    }
+    else {
+        return result->second;
+    }
+}
+
+// Cell functions
+sf::Texture hiddenCell = getTexture("tile_hidden");
+void Cell::DrawCell(float x, float y) {
+    this->cellRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
+    this->cellRect.setTexture(&hiddenCell);
+    this->cellRect.setPosition(x, y);
+}
+
+// Board functions
+void Board::setDimen(const string& fileName){
+    ifstream file(fileName);
+    string line;
+    int rowCount;
+    int colCount;
+    if (!file.is_open()){
+        cout << "The board config file is not open.";
+        return;
+    }
+    else {
+        getline(file, line);
+        colCount = stoi(line);
+
+        getline(file, line);
+        rowCount = stoi(line);
+    }
+   _rows = rowCount;
+    _cols = colCount;
+}
+
+void Board::generateBoard(){
+    grid = vector<vector<Cell>>(_rows, vector<Cell>(_cols));
+}
+
+void Board::drawBoard(sf::RenderWindow &window) {
+    std::cout << "Before drawing the board\n";
+    for (int i = 0; i < _rows; i++){
+        for(int j = 0; j < _cols; j++){
+
+            float x = i * CELLHEIGHT;
+            float y = j * CELLHEIGHT;
+            cout << "Drawing cell at (" << x << ", " << y << ")\n";
+            grid[i][j].DrawCell(x, y);
+
+            window.draw(grid[i][j].cellRect);
+        }
+    }
 }
 
 sf::Text makeText(const sf::Font& font, const string& input, int charSize, sf::Color color){
@@ -47,6 +143,11 @@ int main() {
     int width;
     int height;
     int letterCount = 0;
+
+    Board board;
+    board.setDimen("files/config.cfg");
+    board.generateBoard();
+
     setDimen(width, height, "files/config.cfg");
 
     sf::Font font;
@@ -135,6 +236,9 @@ int main() {
         }
         window.display();
     }
+    vector<string> usernames;
+    usernames.push_back(userName.getString());
+
 
 
     sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
@@ -144,7 +248,13 @@ int main() {
             if (event.type == sf::Event::Closed) {
                 gameWindow.close();
             }
-
         }
+        gameWindow.clear(sf::Color::White);
+
+        // draw on new Window???; that way, I can make it smaller without having specific dimensions.
+        board.drawBoard(gameWindow);
+
+        gameWindow.display();
     }
 }
+
