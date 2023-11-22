@@ -1,11 +1,21 @@
 #include <iostream>
 #include <fstream>
 #include <SFML/Graphics.hpp>
+#include <random>
 #include "minesweeper.h"
 
 using namespace std;
 // Welcome Window: 15 PTS
 // board changes size & numMines based on values in board_config.cfg: 10 PTS
+
+mt19937 random_mt(random_device{}());
+
+int Random(int min, int max)
+{
+    uniform_int_distribution<int> dist(min, max);
+    return dist(random_mt);
+}
+
 float setCellHeight(const string& filename){
     int width;
     int height;
@@ -59,7 +69,7 @@ void setDimen(int &width, int &height, const string &filename){
 
 // Texture manager functions
 unordered_map<string, sf::Texture> textures;
-sf::Texture& getTexture(std::string textureName) {
+sf::Texture& getTexture(const string& textureName) {
     auto result = textures.find(textureName);
     if (result == textures.end()){
         sf::Texture newTexture;
@@ -77,11 +87,18 @@ sf::Texture& getTexture(std::string textureName) {
 
 // Cell functions
 sf::Texture hiddenCell = getTexture("tile_hidden");
-void Cell::DrawCell(float x, float y) {
+sf::Texture mine = getTexture("mine");
+void Cell::DrawCell(float x, float y, sf::RenderWindow &window) {
     this->cellRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
-//    cellRect.setOrigin(cellRect.getSize().x / 2.0f, cellRect.getSize().y / 2.0f);
     this->cellRect.setTexture(&hiddenCell);
     this->cellRect.setPosition(x, y);
+    window.draw(this->cellRect);
+    if(hasMine){
+        sf::RectangleShape mineRect(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
+        mineRect.setTexture(&mine);
+        mineRect.setPosition(x, y);
+        window.draw(mineRect);
+    }
 }
 
 // Board functions
@@ -100,9 +117,16 @@ void Board::setDimen(const string& fileName){
 
         getline(file, line);
         rowCount = stoi(line);
+
+        getline(file, line);
+        this->num_mines = stoi(line);
     }
    _rows = rowCount;
     _cols = colCount;
+}
+
+int Board::getMines() {
+    return num_mines;
 }
 
 void Board::generateBoard(){
@@ -110,18 +134,26 @@ void Board::generateBoard(){
 }
 
 void Board::drawBoard(sf::RenderWindow &window) {
-    std::cout << "Before drawing the board\n";
 
     for (int i = 0; i < _rows; i++) {
         for (int j = 0; j < _cols; j++) {
             float x = j * CELLHEIGHT;
             float y = i * CELLHEIGHT;
+            grid[i][j].DrawCell(x, y, window);
+        }
+    }
+}
 
-            cout << "Drawing cell at (" << x << ", " << y << ")\n";
-
-            grid[i][j].DrawCell(x, y);
-
-            window.draw(grid[i][j].cellRect);
+void Board::setMines() {
+    int countMines = 0;
+    while (countMines < num_mines) {
+        int randomX, randomY;
+        randomX = Random(0, _rows - 1);
+        randomY = Random(0, _cols - 1);
+        if (!grid[randomX][randomY].hasMine) {
+            grid[randomX][randomY].hasMine = true;
+            cout << "Set mine at... (" << randomX << ", " << randomY << ")\n";
+            countMines += 1;
         }
     }
 }
@@ -152,7 +184,7 @@ int main() {
     board.setDimen("files/config.cfg");
     board.generateBoard();
 
-    setDimen(width, height, "files/config.cfg");
+    setDimen(width, height,  "files/config.cfg");
 
     sf::Font font;
     font.loadFromFile("files/font.ttf");
@@ -247,6 +279,7 @@ int main() {
 
 
     sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
+    board.setMines();
     while (gameWindow.isOpen()) {
         sf::Event event;
         while (gameWindow.pollEvent(event)) {
