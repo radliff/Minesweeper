@@ -14,20 +14,63 @@
 #include <string>
 
 using namespace std;
+unordered_map<string, sf::Texture> textures;
+sf::Texture& getTexture(const string& textureName) {
+    auto result = textures.find(textureName);
+    if (result == textures.end()){
+        sf::Texture newTexture;
+        newTexture.loadFromFile("images/" + textureName + ".png");
+        if(!newTexture.loadFromFile("images/" + textureName + ".png")){
+            cout << "Texture loading error." << endl;
+        }
+        textures[textureName] = newTexture;
+        return textures[textureName];
+    }
+    else {
+        return result->second;
+    }
+}
+float setCellHeight(const string& filename){
+    int width;
+    int height;
+    int rowCount;
+    int colCount;
+    float cellHeight;
+    string line;
+    ifstream file(filename);
+    if (!file.is_open()){
+        cout << "The board config file is not open.";
+        return 0;
+    }
+    else {
+        getline(file, line);
+        colCount = stoi(line);
 
+        getline(file, line);
+        rowCount = stoi(line);
+    }
+    width = colCount * 32;
+    height = (rowCount * 32) + 100;
+    file.close();
+    cellHeight = (float)(width / colCount);
+    return cellHeight;
+}
+const float CELLHEIGHT = setCellHeight("files/config.cfg");
 class Cell{
-    bool _revealed = false;
-    bool _hasFlag;
     int _numMines;
     int _numTiles;
 public:
-
+    bool _hasFlag = false;
+    bool _revealed = false;
     bool hasMine = false;
-
     Cell(){};
     void DrawCell(float x, float y, sf::RenderWindow &window);
-
     sf::RectangleShape cellRect;
+    sf::RectangleShape numRect;
+    sf::Texture hiddenCell = getTexture("tile_hidden");
+    sf::Texture mine = getTexture("mine");
+    sf::Texture flag = getTexture("flag");
+    sf::Texture revealedCell = getTexture("tile_revealed");
 };
 
 class Board{
@@ -40,6 +83,9 @@ public:
     void setDimen(const string& fileName);
     void generateBoard();
     void setMines();
+    int checkMines(sf::Vector2i &coordinates);
+    void drawCellNumber(sf::Vector2i &coordinates, vector<sf::Texture> &textures);
     int getMines();
+    void setFlag(sf::Vector2i &coordinates);
     void drawBoard(sf::RenderWindow &window);
 };
