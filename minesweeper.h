@@ -85,6 +85,7 @@ public:
     void setMines();
     int checkMines(sf::Vector2i &coordinates);
     void drawCellNumber(sf::Vector2i &coordinates, vector<sf::Texture> &textures);
+    int countFlags();
     int getMines();
     void setFlag(sf::Vector2i &coordinates);
     void drawBoard(sf::RenderWindow &window);

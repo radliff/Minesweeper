@@ -66,7 +66,7 @@ void Cell::DrawCell(float x, float y, sf::RenderWindow &window) {
         this->cellRect.setTexture(&hiddenCell);
         window.draw(this->cellRect);
 
-        if (this->hasMine) {
+        if (this->hasMine) { // add this.revealed here and change the drawCellNumber function to include mines getting revealed.
             sf::RectangleShape mineRect(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
             mineRect.setTexture(&mine);
             mineRect.setPosition(x, y);
@@ -124,6 +124,18 @@ void Board::drawBoard(sf::RenderWindow &window) {
             grid[i][j].DrawCell(x, y, window);
         }
     }
+}
+
+int Board::countFlags() {
+    int count = 0;
+    for(int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++){
+            if(grid[i][j]._hasFlag){
+                count += 1;
+            }
+        }
+    }
+    return count;
 }
 
 void Board::setMines() {
@@ -358,12 +370,18 @@ int main() {
     sf::Texture leaderboard = getTexture("leaderboard");
     sf::Sprite leaderboardButton = makeSprite(leaderboard, sf::Vector2f((colCount * 32) - 176, 32 * (rowCount + 0.5)));
 
+    sf::Texture digit = getTexture("digits");
+    sf::Sprite digitSprite = makeSprite(digit, sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
+
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
 
     sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
     board.setMines();
+
     while (gameWindow.isOpen()) {
+        int digit1 = board.getMines() / 10;
+        int digit2 = board.getMines() % 10;
         sf::Event event;
         while (gameWindow.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
@@ -388,6 +406,13 @@ int main() {
             }
         }
         gameWindow.clear(sf::Color::White);
+
+        digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
+
+        gameWindow.draw(digitSprite);
+
+        digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 0, 32));
+        gameWindow.draw(digitSprite);
 
         gameWindow.draw(hFaceButton);
         gameWindow.draw(debugButton);
