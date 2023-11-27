@@ -16,6 +16,18 @@ int Random(int min, int max)
     return dist(random_mt);
 }
 
+vector<sf::Texture> numberTextures(){
+    vector<sf::Texture> v;
+
+    v.push_back(getTexture("tile_revealed"));
+    for (int i = 1; i <= 8; ++i) {
+        std::string textureName = "number_" + to_string(i);
+        sf::Texture texture = getTexture(textureName);
+        v.push_back(texture);
+    }
+    return v;
+}
+
 
 void setDimen(int &width, int &height, const string &filename){
     int rowCount;
@@ -61,6 +73,7 @@ void Cell::DrawCell(float x, float y, sf::RenderWindow &window) {
             window.draw(numRect);
         } else {
             this->cellRect.setTexture(&revealedCell);
+            this->numRect.setTexture(&revealedCell);
         }
     } else {
         this->cellRect.setTexture(&hiddenCell);
@@ -164,15 +177,43 @@ void Board::setFlag(sf::Vector2i &coordinates) {
 
 }
 
-int Board::checkMines(sf::Vector2i &coordinates) {
-    int targetX = coordinates.x / CELLHEIGHT;
-    int targetY = coordinates.y / CELLHEIGHT;
-    int total = 0;
-
-    // Boundary checking
-    if (targetX < 0 || targetX >= _cols || targetY < 0 || targetY >= _rows) {
-        return -1;  // Out of bounds
-    }
+//int Board::checkMines(sf::Vector2i &coordinates) {
+//    int targetX = coordinates.x / CELLHEIGHT;
+//    int targetY = coordinates.y / CELLHEIGHT;
+//
+//    // Boundary checking
+//    if (targetX < 0 || targetX >= _cols || targetY < 0 || targetY >= _rows) {
+//        return -1;  // Out of bounds
+//    }
+//
+//    grid[targetY][targetX].neighborCount = 0;
+//
+//    if (grid[targetY][targetX].hasMine) {
+//        return -1;
+//    }
+//
+//    for (int i = -1; i <= 1; i++) {
+//        for (int j = -1; j <= 1; j++) {
+//            if (i == 0 && j == 0) {
+//                continue;
+//            }
+//
+//            int neighborY = targetY + i;
+//            int neighborX = targetX + j;
+//
+//            // Boundary checking for neighboring cells
+//            if (neighborX >= 0 && neighborX < _cols && neighborY >= 0 && neighborY < _rows) {
+//                if (grid[neighborY][neighborX].hasMine) {
+//                    grid[targetY][targetX].neighborCount += 1;
+//                }
+//            }
+//        }
+//    }
+//    cout << "There are " << grid[targetY][targetX].neighborCount << " total mines around (" << targetY << " ," << targetX << ")\n";
+//    return grid[targetY][targetX].neighborCount;
+//}
+int Board::checkMines(int targetX, int targetY) const{
+    int numMines = 0;
 
     if (grid[targetY][targetX].hasMine) {
         return -1;
@@ -190,13 +231,20 @@ int Board::checkMines(sf::Vector2i &coordinates) {
             // Boundary checking for neighboring cells
             if (neighborX >= 0 && neighborX < _cols && neighborY >= 0 && neighborY < _rows) {
                 if (grid[neighborY][neighborX].hasMine) {
-                    total += 1;
+                    numMines += 1;
                 }
             }
         }
     }
-    cout << "There are " << total << " total mines around (" << targetY << " ," << targetX << ")\n";
-    return total;
+    return numMines;
+}
+
+void Board::initMines() {
+    for (int y = 0; y < _rows; y++){
+        for (int x = 0; x < _cols; x++){
+            grid[y][x].neighborCount = checkMines(x, y);
+        }
+    }
 }
 
 
@@ -207,25 +255,69 @@ void Board::drawCellNumber(sf::Vector2i &coordinates, vector<sf::Texture> &textu
     if (targetX < 0 || targetX >= _cols || targetY < 0 || targetY >= _rows) {
         return;
     }
-
     grid[targetY][targetX].numRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
     // returns -1 when cell is a mine; so nothing happens
-    if (checkMines(coordinates) < 0){
+    if (grid[targetY][targetX].neighborCount < 0){
         return;
     }
     // no texture set if no neighboring mines
-    if (checkMines(coordinates) == 0){
-        cout << "Revealing at " << "(" << targetY << ", " << targetX << ")" << endl;
-        grid[targetY][targetX]._revealed = true;
+    if (grid[targetY][targetX].neighborCount == 0){
+        // reveal all adjacent non-mines
+        floodFill(coordinates);
         return;
     }
-    int number = checkMines(coordinates);
-
-    grid[targetY][targetX].numRect.setTexture(&texturesV[number - 1]);
+    cout << "The texture is supposed to be " << grid[targetY][targetX].neighborCount << ".\n";
+    grid[targetY][targetX].numRect.setTexture(&texturesV[grid[targetY][targetX].neighborCount]);
     grid[targetY][targetX].numRect.setPosition(targetX * CELLHEIGHT, targetY * CELLHEIGHT);
     grid[targetY][targetX]._revealed = true;
 }
 
+void Board::setNumMines(int mines) {
+    this->num_mines = mines;
+}
+void Board::floodFill(sf::Vector2i &coordinates) {
+    cout << "We are calling floodfill!" << endl;
+    vector<sf::Texture> v = numberTextures();
+    int targetX = coordinates.x / CELLHEIGHT;
+    int targetY = coordinates.y / CELLHEIGHT;
+
+    sf::Vector2i fC(targetX * CELLHEIGHT, targetY * CELLHEIGHT);
+
+    // Boundary checking
+    if (targetX < 0 || targetX >= _cols || targetY < 0 || targetY >= _rows) {
+        return;  // Out of bounds
+    }
+
+    if (grid[targetY][targetX].hasMine || grid[targetY][targetX]._revealed) {
+        return;
+    }
+    cout << "We've gotten to the start of the loop of floodfill!" << endl;
+    grid[targetY][targetX]._revealed = true;
+    if(grid[targetY][targetX].neighborCount == 0){
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                if (i == 0 && j == 0) {
+                    continue;
+                }
+
+                int neighborY = targetY + i;
+                int neighborX = targetX + j;
+
+                // Boundary checking for neighboring cells
+                if (neighborX >= 0 && neighborX < _cols && neighborY >= 0 && neighborY < _rows) {
+                    cout << "Revealing (" << neighborY << " , " << neighborX << ")" << endl;
+                    if (!grid[targetY][targetX]._revealed){
+                        grid[targetY][targetX]._revealed = true;
+                    }
+                    sf::Vector2i neighborCoords(neighborX * CELLHEIGHT, neighborY * CELLHEIGHT);
+                    floodFill(neighborCoords);
+                }
+            }
+        }
+    } else {
+        drawCellNumber(fC, v);
+    }
+}
 
 sf::Text makeText(const sf::Font& font, const string& input, int charSize, sf::Color color){
     sf::Text text;
@@ -242,27 +334,13 @@ void setText(sf::Text &text, float x, float y){
     text.setPosition(sf::Vector2f(x,y));
 }
 
-vector<sf::Texture> numberTextures(){
-    vector<sf::Texture> v;
-    for (int i = 1; i <= 8; ++i) {
-        std::string textureName = "number_" + to_string(i);
-        sf::Texture texture = getTexture(textureName);
-        v.push_back(texture);
-    }
-    return v;
-}
-
 
 int main() {
     int width;
     int height;
     int letterCount = 0;
 
-    Board board;
-    board.setDimen("files/config.cfg");
-    board.generateBoard();
-
-    setDimen(width, height,  "files/config.cfg");
+    setDimen(width, height, "files/config.cfg");
 
     float rowCount = (height - 100) / 32;
     float colCount = width / 32;
@@ -276,6 +354,10 @@ int main() {
     }
 
     sf::RenderWindow window(sf::VideoMode(width, height), "Welcome Window", sf::Style::Close);
+
+    Board board;
+    board.setDimen("files/config.cfg");
+    board.generateBoard();
 
     sf::Text welcomeText = makeText(font, "WELCOME TO MINESWEEPER", 24, sf::Color::White);
 
@@ -348,7 +430,8 @@ int main() {
         setText(userName, width / 2, (height / 2) - 45);
         window.draw(userName);
 
-        cursor.setPosition(userName.getPosition().x + userName.getGlobalBounds().width / 2, userName.getPosition().y - 10);
+        cursor.setPosition(userName.getPosition().x + userName.getGlobalBounds().width / 2,
+                           userName.getPosition().y - 10);
         if (letterCount < 10) {
             window.draw(cursor);
         }
@@ -357,12 +440,13 @@ int main() {
     vector<string> usernames;
     usernames.push_back(userName.getString());
 
+    sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
     // UI button locations
     sf::Texture happyFace = getTexture("face_happy");
-    sf::Sprite hFaceButton = makeSprite(happyFace, sf::Vector2f( ((colCount / 2.0f) * 32) - 32, 32 * (rowCount + 0.5)));
+    sf::Sprite hFaceButton = makeSprite(happyFace, sf::Vector2f(((colCount / 2.0f) * 32) - 32, 32 * (rowCount + 0.5)));
 
     sf::Texture debug = getTexture("debug");
-    sf::Sprite debugButton = makeSprite(debug, sf::Vector2f((colCount  * 32) - 304, 32 * (rowCount + 0.5)));
+    sf::Sprite debugButton = makeSprite(debug, sf::Vector2f((colCount * 32) - 304, 32 * (rowCount + 0.5)));
 
     sf::Texture pause = getTexture("pause");
     sf::Sprite pauseButton = makeSprite(pause, sf::Vector2f((colCount * 32) - 240, 32 * (rowCount + 0.5)));
@@ -376,52 +460,55 @@ int main() {
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
 
-    sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
     board.setMines();
-
+    int numMines = board.getMines();
+    board.initMines();
     while (gameWindow.isOpen()) {
-        int digit1 = board.getMines() / 10;
-        int digit2 = board.getMines() % 10;
         sf::Event event;
         while (gameWindow.pollEvent(event)) {
+            int digit1 = board.getMines() / 10;
+            int digit2 = board.getMines() % 10;
             if (event.type == sf::Event::Closed) {
                 gameWindow.close();
             }
-
-            if(event.type == sf::Event::MouseButtonPressed){
-                if(event.mouseButton.button == sf::Mouse::Right){
-                    sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
-                    board.setFlag(mousePosition);
-                    board.drawBoard(gameWindow);
+            else if (event.type == sf::Event::MouseButtonPressed) {
+                if (event.mouseButton.button == sf::Mouse::Right) {
+                    if( (event.mouseButton.x >= 0 && event.mouseButton.x < gameWindow.getSize().x) && (event.mouseButton.y >= 0 &&
+                    gameWindow.getSize().y) ) {
+                        sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
+                        board.setFlag(mousePosition);
+                        board.setNumMines( numMines - board.countFlags());
+                        board.drawBoard(gameWindow);
+                    }
+            } else if (event.mouseButton.button == sf::Mouse::Left) {
+                    if( (event.mouseButton.x >= 0 && event.mouseButton.x < gameWindow.getSize().x) && (event.mouseButton.y >= 0 && gameWindow.getSize().y) ) {
+                        sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
+//                        board.checkMines(mousePosition);
+                        board.drawCellNumber(mousePosition, numberTexture);
+                    }
                 }
             }
+            gameWindow.clear(sf::Color::White);
 
-            if(event.type == sf::Event::MouseButtonPressed){
-                if(event.mouseButton.button == sf::Mouse::Left){
-                    sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
+            digitSprite.setPosition(sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
 
-                    board.checkMines(mousePosition);
-                    board.drawCellNumber(mousePosition, numberTexture);
-                }
-            }
+            digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
+            gameWindow.draw(digitSprite);
+
+            digitSprite.move(21, 0);
+
+            digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 21, 32));
+            gameWindow.draw(digitSprite);
+
+            gameWindow.draw(hFaceButton);
+            gameWindow.draw(debugButton);
+            gameWindow.draw(leaderboardButton);
+            gameWindow.draw(pauseButton);
+
+            board.drawBoard(gameWindow);
+
+            gameWindow.display();
         }
-        gameWindow.clear(sf::Color::White);
-
-        digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
-
-        gameWindow.draw(digitSprite);
-
-        digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 0, 32));
-        gameWindow.draw(digitSprite);
-
-        gameWindow.draw(hFaceButton);
-        gameWindow.draw(debugButton);
-        gameWindow.draw(leaderboardButton);
-        gameWindow.draw(pauseButton);
-
-        board.drawBoard(gameWindow);
-
-        gameWindow.display();
     }
 }
 

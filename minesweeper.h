@@ -57,9 +57,9 @@ float setCellHeight(const string& filename){
 }
 const float CELLHEIGHT = setCellHeight("files/config.cfg");
 class Cell{
-    int _numMines;
     int _numTiles;
 public:
+    int neighborCount = 0;
     bool _hasFlag = false;
     bool _revealed = false;
     bool hasMine = false;
@@ -82,8 +82,11 @@ public:
     Board(){};
     void setDimen(const string& fileName);
     void generateBoard();
+    void floodFill(sf::Vector2i &coordinates);
     void setMines();
-    int checkMines(sf::Vector2i &coordinates);
+    void setNumMines(int mines);
+    int checkMines(int targetX, int targetY) const;
+    void initMines();
     void drawCellNumber(sf::Vector2i &coordinates, vector<sf::Texture> &textures);
     int countFlags();
     int getMines();
