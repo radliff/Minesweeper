@@ -314,9 +314,8 @@ void Board::floodFill(sf::Vector2i &coordinates) {
                 }
             }
         }
-    } else {
-        drawCellNumber(fC, v);
     }
+    drawCellNumber(fC, v);
 }
 
 sf::Text makeText(const sf::Font& font, const string& input, int charSize, sf::Color color){
@@ -338,6 +337,7 @@ void setText(sf::Text &text, float x, float y){
 int main() {
     int width;
     int height;
+
     int letterCount = 0;
 
     setDimen(width, height, "files/config.cfg");
