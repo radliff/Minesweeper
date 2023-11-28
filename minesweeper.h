@@ -82,14 +82,15 @@ public:
     Board(){};
     void setDimen(const string& fileName);
     void generateBoard();
-    void floodFill(sf::Vector2i &coordinates);
+    void floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vector<sf::Texture> &texturesV);
     void setMines();
     void setNumMines(int mines);
     int checkMines(int targetX, int targetY) const;
     void initMines();
-    void drawCellNumber(sf::Vector2i &coordinates, vector<sf::Texture> &textures);
+    void drawCellNumber(sf::Vector2f &coordinates, vector<sf::Texture> &texturesV, sf::RenderWindow &window);
     int countFlags();
     int getMines();
     void setFlag(sf::Vector2i &coordinates);
     void drawBoard(sf::RenderWindow &window);
+    void drawNumberText(sf::RenderWindow &window, vector<sf::Texture> &v);
 };
