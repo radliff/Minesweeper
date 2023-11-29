@@ -92,5 +92,5 @@ public:
     int getMines();
     void setFlag(sf::Vector2i &coordinates);
     void drawBoard(sf::RenderWindow &window);
-    void drawNumberText(sf::RenderWindow &window, vector<sf::Texture> &v);
+    bool debug = false;
 };

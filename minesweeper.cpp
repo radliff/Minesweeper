@@ -272,12 +272,10 @@ void Board::drawCellNumber(sf::Vector2f &coordinates, vector<sf::Texture> &textu
     }
 
     // Set the texture for cells with neighboring mines
-    cout << "\nNEIGHBOR COUNT: " << grid[targetY][targetX].neighborCount;
     grid[targetY][targetX]._revealed = true;
     grid[targetY][targetX].numRect.setTexture(&texturesV[grid[targetY][targetX].neighborCount]);
     grid[targetY][targetX].numRect.setPosition(targetX * CELLHEIGHT, targetY * CELLHEIGHT);
 
-    cout << "\nPOSITION SET!";
 }
 
 void Board::setNumMines(int mines) {
@@ -285,7 +283,6 @@ void Board::setNumMines(int mines) {
 }
 
 void Board::floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vector<sf::Texture> &texturesV) {
-    cout << "We are calling floodfill!" << endl;
     float targetX = coordinates.x / CELLHEIGHT;
     float targetY = coordinates.y / CELLHEIGHT;
 
@@ -474,17 +471,23 @@ int main() {
     sf::Texture digit = getTexture("digits");
     sf::Sprite digitSprite = makeSprite(digit, sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
 
+    sf::Sprite timerSprite = makeSprite(digit, sf::Vector2f((colCount * 32) - 97, 32 * (rowCount + 0.5) + 16));
+    sf::Sprite secondSprite = makeSprite(digit, sf::Vector2f((colCount * 32) - 54,32 * (rowCount + 0.5) + 16));
+
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
 
+    sf::Clock clock;
+    sf::Time startTime = clock.getElapsedTime();
     board.setMines();
     int numMines = board.getMines();
     board.initMines();
     while (gameWindow.isOpen()) {
         sf::Event event;
+        int digit1 = board.getMines() / 10;
+        int digit2 = board.getMines() % 10;
         while (gameWindow.pollEvent(event)) {
-            int digit1 = board.getMines() / 10;
-            int digit2 = board.getMines() % 10;
+
             if (event.type == sf::Event::Closed) {
                 gameWindow.close();
             }
@@ -501,33 +504,62 @@ int main() {
                     if( (event.mouseButton.x >= 0 && event.mouseButton.x < gameWindow.getSize().x) && (event.mouseButton.y >= 0 && event.mouseButton.y <
                     gameWindow.getSize().y) ) {
                         sf::Vector2f mousePosition(event.mouseButton.x, event.mouseButton.y);
-//                        board.checkMines(mousePosition);
+                        if(debugButton.getGlobalBounds().contains(mousePosition)){
+                            cout << "DEBUGGED!";
+                        }
                         board.drawCellNumber(mousePosition, numberTexture, gameWindow);
-//                        board.floodFill(mousePosition, gameWindow);
                     }
                 }
             }
-            gameWindow.clear(sf::Color::White);
-
-            digitSprite.setPosition(sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
-
-            digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
-            gameWindow.draw(digitSprite);
-
-            digitSprite.move(21, 0);
-
-            digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 21, 32));
-            gameWindow.draw(digitSprite);
-
-            gameWindow.draw(hFaceButton);
-            gameWindow.draw(debugButton);
-            gameWindow.draw(leaderboardButton);
-            gameWindow.draw(pauseButton);
-
-            board.drawBoard(gameWindow);
-
-            gameWindow.display();
         }
+        gameWindow.clear(sf::Color::White);
+
+        digitSprite.setPosition(sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
+        timerSprite.setPosition(sf::Vector2f((colCount * 32) - 97, 32 * (rowCount + 0.5) + 16));
+        secondSprite.setPosition(sf::Vector2f((colCount * 32) - 54,32 * (rowCount + 0.5) + 16));
+
+
+        digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
+        gameWindow.draw(digitSprite);
+
+        digitSprite.move(21, 0);
+
+        digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 21, 32));
+
+        gameWindow.draw(digitSprite);
+
+        sf::Time elapsedTime = clock.getElapsedTime() - startTime;
+
+        int seconds = static_cast<int>(elapsedTime.asSeconds()) % 60;
+        int minutes = elapsedTime.asSeconds() / 60;
+        // Now we separate the seconds into ones & tens place
+        int second1 = seconds / 10;
+        int second2 = seconds % 10;
+
+        timerSprite.setTextureRect(sf::IntRect(0, 0, 21, 32));
+        gameWindow.draw(timerSprite);
+
+        timerSprite.move(21, 0);
+
+        timerSprite.setTextureRect(sf::IntRect(minutes * 21, 0, 21, 32));
+        gameWindow.draw(timerSprite);
+
+        secondSprite.setTextureRect(sf::IntRect(second1 * 21, 0, 21, 32));
+        gameWindow.draw(secondSprite);
+
+        secondSprite.move(21, 0);
+
+        secondSprite.setTextureRect(sf::IntRect(second2 * 21, 0, 21, 32));
+        gameWindow.draw(secondSprite);
+
+
+        gameWindow.draw(hFaceButton);
+        gameWindow.draw(debugButton);
+        gameWindow.draw(leaderboardButton);
+        gameWindow.draw(pauseButton);
+
+        board.drawBoard(gameWindow);
+        gameWindow.display();
     }
 }
 
