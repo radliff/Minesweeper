@@ -171,7 +171,7 @@ void Board::setFlag(sf::Vector2i &coordinates) {
     coordinates.x /= CELLHEIGHT;
     coordinates.y /= CELLHEIGHT;
     if (coordinates.x >= 0 && coordinates.x < _cols && coordinates.y >= 0 && coordinates.y < _rows){
-        if (grid[coordinates.y][coordinates.x]._hasFlag || grid[coordinates.y][coordinates.x].hasMine){
+        if (grid[coordinates.y][coordinates.x]._hasFlag || grid[coordinates.y][coordinates.x].hasMine && grid[coordinates.y][coordinates.x]._revealed){
             grid[coordinates.y][coordinates.x]._hasFlag = false;
         } else {
             grid[coordinates.y][coordinates.x]._hasFlag = true;
@@ -307,7 +307,18 @@ void Board::revealAllMines() {
     }
 }
 
-
+void Board::pauseBoard() {
+    for (int i = 0; i < _rows; i++){
+        for (int j = 0; j < _cols; j++){
+            if (!grid[i][j]._revealed){
+                grid[i][j]._hasFlag = false;
+                grid[i][j]._revealed = true;
+            } else {
+                grid[i][j].numRect.setTexture(&getTexture("tile_revealed"));
+            }
+        }
+    }
+}
 
 
 sf::Text makeText(const sf::Font& font, const string& input, int charSize, sf::Color color){
@@ -456,15 +467,20 @@ int main() {
 
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
+
     sf::Clock clock;
     bool clockRunning = true;
     sf::Time startTime = clock.getElapsedTime();
+    auto pauseTime = clock.getElapsedTime();
+    auto elapsedPauseTime = clock.getElapsedTime().asSeconds() - pauseTime.asSeconds();
+
+
+    vector<vector<Cell>> saveState;
     board.setMines();
     int numMines = board.getMines();
     board.initMines();
     while (gameWindow.isOpen()) {
         sf::Event event;
-        sf::Time elapsedTime = clock.getElapsedTime() - startTime;
         int digit1 = board.getMines() / 10;
         int digit2 = board.getMines() % 10;
         while (gameWindow.pollEvent(event)) {
@@ -489,20 +505,18 @@ int main() {
                             cout << "DEBUGGED!";
                             board.revealAllMines();
                         } else if (pauseButton.getGlobalBounds().contains(mousePosition)){
-                            cout << "PAUSED!\n";
-                            if(!board.pause){
-                                board.pause = true;
+                            board.pause = !board.pause; // reflects if board is paused or playing
+                            if(board.pause){
+                                saveState = board.grid;
+                                cout << "PAUSED!\n";
                                 pauseButton.setTexture(play);
-                                if (clockRunning){
-                                    clockRunning = false;
-                                    elapsedTime = sf::Time::Zero;
-                                } else {
-                                    elapsedTime = clock.getElapsedTime() - startTime;
-                                    clockRunning = true;
-                                }
+                                pauseTime = clock.getElapsedTime();
+                                board.pauseBoard();
                             } else {
                                 pauseButton.setTexture(pause);
-                                board.pause = false;
+                                auto unpausedTime = clock.getElapsedTime();
+                                elapsedPauseTime += (unpausedTime - pauseTime).asSeconds();
+                                board.grid = saveState;
                             }
                         }
                         else {
@@ -528,18 +542,33 @@ int main() {
 
         gameWindow.draw(digitSprite);
 
-        int seconds = static_cast<int>(elapsedTime.asSeconds()) % 60;
-        int minutes = elapsedTime.asSeconds() / 60;
+        auto gameDuration = clock.getElapsedTime().asSeconds() - startTime.asSeconds();
+        int totalElapsedTime = gameDuration;
+
+        int minutes;
+        int seconds;
+
+        if (!board.pause){
+            totalElapsedTime -= elapsedPauseTime;
+            seconds = static_cast<int>(totalElapsedTime) % 60;
+            minutes = totalElapsedTime / 60;
+        } else {
+            board.pauseBoard();
+        }
+
         // Now we separate the seconds into ones & tens place
-        int second1 = seconds / 10;
+        int second1 = seconds / 10 % 10;
         int second2 = seconds % 10;
 
-        timerSprite.setTextureRect(sf::IntRect(0, 0, 21, 32));
+        int minute1 = minutes / 10 % 10;
+        int minute2 = minutes % 10;
+
+        timerSprite.setTextureRect(sf::IntRect(minute1 * 21, 0, 21, 32));
         gameWindow.draw(timerSprite);
 
         timerSprite.move(21, 0);
 
-        timerSprite.setTextureRect(sf::IntRect(minutes * 21, 0, 21, 32));
+        timerSprite.setTextureRect(sf::IntRect(minute2 * 21, 0, 21, 32));
         gameWindow.draw(timerSprite);
 
         secondSprite.setTextureRect(sf::IntRect(second1 * 21, 0, 21, 32));
