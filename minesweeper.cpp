@@ -72,7 +72,15 @@ void Cell::DrawCell(float x, float y, sf::RenderWindow &window) {
         if (this->numRect.getTexture() != nullptr){
             this->numRect.setPosition(x, y);
             window.draw(numRect);
-        } else {
+        } else if(this->hasMine) {
+            this->cellRect.setTexture(&hiddenCell);
+            sf::RectangleShape mineRect(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
+            mineRect.setTexture(&mine);
+            mineRect.setPosition(x, y);
+            window.draw(this->cellRect);
+            window.draw(mineRect);
+        }
+        else {
             this->numRect.setPosition(x, y);
             this->numRect.setTexture(&revealedCell);
             window.draw(this->numRect);
@@ -80,13 +88,6 @@ void Cell::DrawCell(float x, float y, sf::RenderWindow &window) {
     } else {
         this->cellRect.setTexture(&hiddenCell);
         window.draw(this->cellRect);
-
-        if (this->hasMine) { // add this.revealed here and change the drawCellNumber function to include mines getting revealed.
-            sf::RectangleShape mineRect(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
-            mineRect.setTexture(&mine);
-            mineRect.setPosition(x, y);
-            window.draw(mineRect);
-        }
 
         if (this->_hasFlag) {
             sf::RectangleShape flagRect(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
@@ -179,41 +180,6 @@ void Board::setFlag(sf::Vector2i &coordinates) {
 
 }
 
-//int Board::checkMines(sf::Vector2i &coordinates) {
-//    int targetX = coordinates.x / CELLHEIGHT;
-//    int targetY = coordinates.y / CELLHEIGHT;
-//
-//    // Boundary checking
-//    if (targetX < 0 || targetX >= _cols || targetY < 0 || targetY >= _rows) {
-//        return -1;  // Out of bounds
-//    }
-//
-//    grid[targetY][targetX].neighborCount = 0;
-//
-//    if (grid[targetY][targetX].hasMine) {
-//        return -1;
-//    }
-//
-//    for (int i = -1; i <= 1; i++) {
-//        for (int j = -1; j <= 1; j++) {
-//            if (i == 0 && j == 0) {
-//                continue;
-//            }
-//
-//            int neighborY = targetY + i;
-//            int neighborX = targetX + j;
-//
-//            // Boundary checking for neighboring cells
-//            if (neighborX >= 0 && neighborX < _cols && neighborY >= 0 && neighborY < _rows) {
-//                if (grid[neighborY][neighborX].hasMine) {
-//                    grid[targetY][targetX].neighborCount += 1;
-//                }
-//            }
-//        }
-//    }
-//    cout << "There are " << grid[targetY][targetX].neighborCount << " total mines around (" << targetY << " ," << targetX << ")\n";
-//    return grid[targetY][targetX].neighborCount;
-//}
 int Board::checkMines(int targetX, int targetY) const{
     int numMines = 0;
 
@@ -296,7 +262,7 @@ void Board::floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vecto
         return;
     }
     sf::Vector2f fC(targetX * CELLHEIGHT, targetY * CELLHEIGHT);
-
+// 
     // Mark the current cell as revealed
     grid[targetY][targetX]._revealed = true;
 
@@ -328,6 +294,18 @@ void Board::floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vecto
     }
 }
 
+void Board::revealAllMines() {
+    for (int i = 0; i < _rows; i++){
+        for (int j = 0; j < _cols; j++){
+            if(grid[i][j].hasMine && !grid[i][j]._revealed){
+                grid[i][j]._revealed = true;
+            } else {
+                grid[i][j]._revealed = false;
+            }
+
+        }
+    }
+}
 
 
 
@@ -465,6 +443,8 @@ int main() {
     sf::Texture pause = getTexture("pause");
     sf::Sprite pauseButton = makeSprite(pause, sf::Vector2f((colCount * 32) - 240, 32 * (rowCount + 0.5)));
 
+    sf::Texture play = getTexture("play");
+
     sf::Texture leaderboard = getTexture("leaderboard");
     sf::Sprite leaderboardButton = makeSprite(leaderboard, sf::Vector2f((colCount * 32) - 176, 32 * (rowCount + 0.5)));
 
@@ -476,14 +456,15 @@ int main() {
 
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
-
     sf::Clock clock;
+    bool clockRunning = true;
     sf::Time startTime = clock.getElapsedTime();
     board.setMines();
     int numMines = board.getMines();
     board.initMines();
     while (gameWindow.isOpen()) {
         sf::Event event;
+        sf::Time elapsedTime = clock.getElapsedTime() - startTime;
         int digit1 = board.getMines() / 10;
         int digit2 = board.getMines() % 10;
         while (gameWindow.pollEvent(event)) {
@@ -494,20 +475,39 @@ int main() {
             else if (event.type == sf::Event::MouseButtonPressed) {
                 if (event.mouseButton.button == sf::Mouse::Right) {
                     if( (event.mouseButton.x >= 0 && event.mouseButton.x < gameWindow.getSize().x) && (event.mouseButton.y >= 0 &&
-                    gameWindow.getSize().y) ) {
+                                                                                                       gameWindow.getSize().y) ) {
                         sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
                         board.setFlag(mousePosition);
                         board.setNumMines( numMines - board.countFlags());
                         board.drawBoard(gameWindow);
                     }
-            } else if (event.mouseButton.button == sf::Mouse::Left) {
+                } else if (event.mouseButton.button == sf::Mouse::Left) {
                     if( (event.mouseButton.x >= 0 && event.mouseButton.x < gameWindow.getSize().x) && (event.mouseButton.y >= 0 && event.mouseButton.y <
-                    gameWindow.getSize().y) ) {
+                                                                                                                                   gameWindow.getSize().y) ) {
                         sf::Vector2f mousePosition(event.mouseButton.x, event.mouseButton.y);
                         if(debugButton.getGlobalBounds().contains(mousePosition)){
                             cout << "DEBUGGED!";
+                            board.revealAllMines();
+                        } else if (pauseButton.getGlobalBounds().contains(mousePosition)){
+                            cout << "PAUSED!\n";
+                            if(!board.pause){
+                                board.pause = true;
+                                pauseButton.setTexture(play);
+                                if (clockRunning){
+                                    clockRunning = false;
+                                    elapsedTime = sf::Time::Zero;
+                                } else {
+                                    elapsedTime = clock.getElapsedTime() - startTime;
+                                    clockRunning = true;
+                                }
+                            } else {
+                                pauseButton.setTexture(pause);
+                                board.pause = false;
+                            }
                         }
-                        board.drawCellNumber(mousePosition, numberTexture, gameWindow);
+                        else {
+                            board.drawCellNumber(mousePosition, numberTexture, gameWindow);
+                        }
                     }
                 }
             }
@@ -527,8 +527,6 @@ int main() {
         digitSprite.setTextureRect(sf::IntRect(digit2 * 21, 0, 21, 32));
 
         gameWindow.draw(digitSprite);
-
-        sf::Time elapsedTime = clock.getElapsedTime() - startTime;
 
         int seconds = static_cast<int>(elapsedTime.asSeconds()) % 60;
         int minutes = elapsedTime.asSeconds() / 60;

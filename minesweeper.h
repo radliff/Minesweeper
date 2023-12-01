@@ -92,5 +92,7 @@ public:
     int getMines();
     void setFlag(sf::Vector2i &coordinates);
     void drawBoard(sf::RenderWindow &window);
-    bool debug = false;
+    void revealAllMines();
+    void Pause();
+    bool pause = false;
 };
