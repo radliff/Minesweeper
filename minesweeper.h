@@ -79,6 +79,8 @@ class Board{
     int num_mines = 0;
 public:
     vector<vector<Cell>> grid;
+    bool pause = false;
+    bool debug = false;
     Board(){};
     void setDimen(const string& fileName);
     void generateBoard();
@@ -94,5 +96,8 @@ public:
     void drawBoard(sf::RenderWindow &window);
     void revealAllMines();
     void pauseBoard();
-    bool pause = false;
+    void resetBoard();
+    bool checkWin();
+    void winState();
+    bool checkLoss();
 };

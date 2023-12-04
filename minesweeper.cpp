@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <SFML/Graphics.hpp>
 #include <random>
 #include "minesweeper.h"
@@ -228,6 +229,7 @@ void Board::drawCellNumber(sf::Vector2f &coordinates, vector<sf::Texture> &textu
     grid[targetY][targetX].numRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
 
     if (grid[targetY][targetX].neighborCount < 0) {
+        grid[targetY][targetX]._revealed = true;
         return;  // No texture set for mines
     }
 
@@ -258,7 +260,7 @@ void Board::floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vecto
     }
 
     // If the current cell is a mine or already revealed, stop recursion
-    if (grid[targetY][targetX].hasMine || grid[targetY][targetX]._revealed) {
+    if (grid[targetY][targetX].hasMine || grid[targetY][targetX]._revealed || grid[targetY][targetX]._hasFlag) {
         return;
     }
     sf::Vector2f fC(targetX * CELLHEIGHT, targetY * CELLHEIGHT);
@@ -308,6 +310,9 @@ void Board::revealAllMines() {
 }
 
 void Board::pauseBoard() {
+    if(checkWin()){
+        return;
+    }
     for (int i = 0; i < _rows; i++){
         for (int j = 0; j < _cols; j++){
             if (!grid[i][j]._revealed){
@@ -318,6 +323,64 @@ void Board::pauseBoard() {
             }
         }
     }
+}
+
+void Board::resetBoard() {
+    sf::RectangleShape cellRect;
+    sf::RectangleShape numRect;
+    for (int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++) {
+            grid[i][j].neighborCount = 0;
+            grid[i][j].hasMine = false;
+            grid[i][j]._hasFlag = false;
+            grid[i][j]._revealed = false;
+            grid[i][j].numRect = numRect;
+            grid[i][j].cellRect = cellRect;
+        }
+    }
+    setMines();
+    initMines();
+}
+
+bool Board::checkWin() {
+    if(pause){
+        return false;
+    }
+    for (int i = 0; i < _rows; i++){
+        for (int j = 0; j < _cols; j++){
+            if (!grid[i][j]._revealed && !grid[i][j].hasMine){
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void Board::winState() {
+    for (int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++) {
+            if (grid[i][j].hasMine && !grid[i][j]._hasFlag) {
+                grid[i][j]._hasFlag = true;
+            }
+        }
+    }
+}
+
+bool Board::checkLoss() {
+    if (debug){
+        return false;
+    }
+    if (pause){
+        return false;
+    }
+    for (int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++) {
+            if (grid[i][j].hasMine && grid[i][j]._revealed) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 
@@ -335,6 +398,47 @@ void setText(sf::Text &text, float x, float y){
     text.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
     text.setPosition(sf::Vector2f(x,y));
 }
+
+void readLeaderboard(map<string, string> &leaderboardMap){
+    ifstream leaderboardFile("files/leaderboard.txt");
+    if (!leaderboardFile.is_open()){
+        cout << "File did not open!\n";
+    }
+    string line;
+
+    while(getline(leaderboardFile, line)){
+        istringstream iss(line);;
+        string time;
+        string name;
+
+        if(getline(iss, time, ',') && getline(iss, name)){
+            leaderboardMap[time] = name;
+        }
+    }
+    leaderboardFile.close();
+}
+
+void drawLeaderboard(sf::Text &boardText, map<string, string> &map, sf::RenderWindow &window){
+    auto iter = map.begin();
+    string displayText;
+    int ranking = 1;
+    for (; iter != map.end(); iter++){
+        displayText += to_string(ranking) + ".\t" +
+        iter->first + "\t" + iter->second + "\n\n";
+        if (ranking == 5){
+            break;
+        }
+        ++ ranking;
+    }
+    boardText.setString(displayText);
+    window.draw(boardText);
+}
+
+// Function to create a deep copy of a 2D vector
+vector<vector<Cell>> deepCopy(const std::vector<std::vector<Cell>>& original) {
+    return vector<vector<Cell>>(original.begin(), original.end());
+}
+
 
 
 int main() {
@@ -446,6 +550,9 @@ int main() {
     sf::RenderWindow gameWindow(sf::VideoMode(width, height), "Minesweeper", sf::Style::Close);
     // UI button locations
     sf::Texture happyFace = getTexture("face_happy");
+    sf::Texture faceWin = getTexture("face_win");
+    sf::Texture faceLose = getTexture("face_lose");
+
     sf::Sprite hFaceButton = makeSprite(happyFace, sf::Vector2f(((colCount / 2.0f) * 32) - 32, 32 * (rowCount + 0.5)));
 
     sf::Texture debug = getTexture("debug");
@@ -468,6 +575,21 @@ int main() {
     // Number Textures
     vector<sf::Texture> numberTexture = numberTextures();
 
+    // Leaderboard text
+    int leaderboardWidth = colCount * 16;
+    int leaderboardHeight = (rowCount * 16) + 50;
+
+    sf::Text leaderboardMain = makeText(font, "LEADERBOARD", 20, sf::Color::White);
+    setText(leaderboardMain, leaderboardWidth / 2, (leaderboardHeight / 2) - 120);
+    leaderboardMain.setStyle(sf::Text::Bold | sf::Text::Underlined);
+
+    sf::Text leaderboardInput = makeText(font, "", 18, sf::Color::White);
+    setText(leaderboardInput, leaderboardWidth / 2, (leaderboardHeight / 2) + 20);
+    leaderboardInput.setStyle(sf::Text::Bold);
+
+    map<string, string> lMap;
+
+
     sf::Clock clock;
     bool clockRunning = true;
     sf::Time startTime = clock.getElapsedTime();
@@ -475,10 +597,10 @@ int main() {
     auto elapsedPauseTime = clock.getElapsedTime().asSeconds() - pauseTime.asSeconds();
 
 
-    vector<vector<Cell>> saveState;
     board.setMines();
     int numMines = board.getMines();
     board.initMines();
+    vector<vector<Cell>> saveState;
     while (gameWindow.isOpen()) {
         sf::Event event;
         int digit1 = board.getMines() / 10;
@@ -503,21 +625,41 @@ int main() {
                         sf::Vector2f mousePosition(event.mouseButton.x, event.mouseButton.y);
                         if(debugButton.getGlobalBounds().contains(mousePosition)){
                             cout << "DEBUGGED!";
+                            board.debug = !board.debug;
                             board.revealAllMines();
                         } else if (pauseButton.getGlobalBounds().contains(mousePosition)){
                             board.pause = !board.pause; // reflects if board is paused or playing
                             if(board.pause){
-                                saveState = board.grid;
-                                cout << "PAUSED!\n";
+                                saveState = deepCopy(board.grid);
                                 pauseButton.setTexture(play);
                                 pauseTime = clock.getElapsedTime();
-                                board.pauseBoard();
+//                                board.pauseBoard();
                             } else {
                                 pauseButton.setTexture(pause);
                                 auto unpausedTime = clock.getElapsedTime();
                                 elapsedPauseTime += (unpausedTime - pauseTime).asSeconds();
                                 board.grid = saveState;
                             }
+                        } else if (leaderboardButton.getGlobalBounds().contains(mousePosition)) {
+                            sf::RenderWindow leaderboardWindow(sf::VideoMode(leaderboardWidth, leaderboardHeight), "Leaderboard", sf::Style::Close);
+                            while(leaderboardWindow.isOpen()){
+                                sf::Event leaderboardEvent;
+                                while (leaderboardWindow.pollEvent(leaderboardEvent)){
+                                    if (leaderboardEvent.type == sf::Event::Closed){
+                                        leaderboardWindow.close();
+                                    }
+                                }
+                                readLeaderboard(lMap);
+
+                                leaderboardWindow.clear(sf::Color::Blue);
+                                leaderboardWindow.draw(leaderboardMain);
+                                setText(leaderboardInput, leaderboardWidth / 2, (leaderboardHeight / 2) + 20);
+                                drawLeaderboard(leaderboardInput, lMap, leaderboardWindow);
+                                leaderboardWindow.display();
+                            }
+                        } else if (hFaceButton.getGlobalBounds().contains(mousePosition)){
+                            board.resetBoard();
+                            board.pause = false;
                         }
                         else {
                             board.drawCellNumber(mousePosition, numberTexture, gameWindow);
@@ -525,7 +667,16 @@ int main() {
                     }
                 }
             }
-        }
+            if (board.checkWin()){
+                hFaceButton.setTexture(faceWin);
+                board.winState();
+                clock.restart();
+            } else if (board.checkLoss()) {
+                hFaceButton.setTexture(faceLose);
+            } else {
+                    hFaceButton.setTexture(happyFace);
+                }
+            }
         gameWindow.clear(sf::Color::White);
 
         digitSprite.setPosition(sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
