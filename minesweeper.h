@@ -81,6 +81,8 @@ public:
     vector<vector<Cell>> grid;
     bool pause = false;
     bool debug = false;
+    bool win = false;
+    bool loss = false;
     Board(){};
     void setDimen(const string& fileName);
     void generateBoard();
@@ -100,4 +102,10 @@ public:
     bool checkWin();
     void winState();
     bool checkLoss();
+    void lossState();
+};
+
+struct LeaderboardEntry{
+    sf::Time time;
+    string name;
 };

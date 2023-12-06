@@ -3,6 +3,7 @@
 #include <sstream>
 #include <SFML/Graphics.hpp>
 #include <random>
+#include <algorithm>
 #include "minesweeper.h"
 
 using namespace std;
@@ -225,6 +226,10 @@ void Board::drawCellNumber(sf::Vector2f &coordinates, vector<sf::Texture> &textu
         return;
     }
 
+    if (checkLoss()){
+        return;
+    }
+
     // Set up the rendering for the current cell
     grid[targetY][targetX].numRect.setSize(sf::Vector2f(CELLHEIGHT, CELLHEIGHT));
 
@@ -343,7 +348,8 @@ void Board::resetBoard() {
 }
 
 bool Board::checkWin() {
-    if(pause){
+    sf::Texture &revealedCell = getTexture("tile_revealed");
+    if(pause && !win){
         return false;
     }
     for (int i = 0; i < _rows; i++){
@@ -364,23 +370,35 @@ void Board::winState() {
             }
         }
     }
+    win = true;
 }
 
 bool Board::checkLoss() {
     if (debug){
         return false;
     }
-    if (pause){
+    if (pause && !loss){
         return false;
     }
     for (int i = 0; i < _rows; i++) {
         for (int j = 0; j < _cols; j++) {
             if (grid[i][j].hasMine && grid[i][j]._revealed) {
+                loss = true;
                 return true;
             }
         }
     }
     return false;
+}
+
+void Board::lossState() {
+    for (int i = 0; i < _rows; i++) {
+        for (int j = 0; j < _cols; j++) {
+            if (grid[i][j].hasMine && !grid[i][j]._revealed) {
+                grid[i][j]._revealed = true;
+            }
+        }
+    }
 }
 
 
@@ -399,7 +417,25 @@ void setText(sf::Text &text, float x, float y){
     text.setPosition(sf::Vector2f(x,y));
 }
 
-void readLeaderboard(map<string, string> &leaderboardMap){
+sf::Time convertTime(const string& timeString){
+   int minutes;
+   int seconds;
+   char colon;
+
+   istringstream iss(timeString);
+   if (iss >> minutes >> colon >> seconds){
+       return sf::seconds(static_cast<float>(minutes * 60 + seconds));
+   } else {
+       cout << "Invalid time format: " << timeString << endl;
+       return sf::Time::Zero;
+   }
+}
+
+bool entryEquality(const LeaderboardEntry &e1, const LeaderboardEntry &e2){
+    return static_cast<int>(e1.time.asSeconds()) == static_cast<int>(e2.time.asSeconds()) && e1.name == e2.name;
+}
+
+void readLeaderboard(vector<LeaderboardEntry> &entries){
     ifstream leaderboardFile("files/leaderboard.txt");
     if (!leaderboardFile.is_open()){
         cout << "File did not open!\n";
@@ -408,23 +444,37 @@ void readLeaderboard(map<string, string> &leaderboardMap){
 
     while(getline(leaderboardFile, line)){
         istringstream iss(line);;
-        string time;
+        string timeString;
         string name;
-
-        if(getline(iss, time, ',') && getline(iss, name)){
-            leaderboardMap[time] = name;
+        LeaderboardEntry entry;
+        if(getline(iss, timeString, ',') && getline(iss, name)){
+            sf::Time time = convertTime(timeString);
+            entry.time = time;
+            entry.name = name;
+            entries.push_back(entry);
         }
     }
     leaderboardFile.close();
 }
-
-void drawLeaderboard(sf::Text &boardText, map<string, string> &map, sf::RenderWindow &window){
-    auto iter = map.begin();
+//
+void drawLeaderboard(sf::Text &boardText, vector<LeaderboardEntry> &entries, sf::RenderWindow &window){
     string displayText;
+    string formattedTime;
     int ranking = 1;
-    for (; iter != map.end(); iter++){
+    for (int i = 0; i < 5; i++){
+        int minutes = entries[i].time.asSeconds() / 60;
+        int seconds = static_cast<int>(entries[i].time.asSeconds()) % 60;
+        if (minutes >= 10 && seconds < 10){
+            formattedTime = to_string(minutes) + ":" + "0" + to_string(seconds);
+        } else if (minutes >= 10 && seconds >= 10){
+            formattedTime = to_string(minutes) + ":" + to_string(seconds);
+        } else if (minutes < 10 && seconds >= 10){
+            formattedTime = "0" + to_string(minutes) + ":" + to_string(seconds);
+        } else if (minutes < 10 && seconds < 10){
+            formattedTime = "0" + to_string(minutes) + ":" + "0" + to_string(seconds);
+        }
         displayText += to_string(ranking) + ".\t" +
-        iter->first + "\t" + iter->second + "\n\n";
+        formattedTime + "\t" + entries[i].name + "\n\n";
         if (ranking == 5){
             break;
         }
@@ -433,6 +483,46 @@ void drawLeaderboard(sf::Text &boardText, map<string, string> &map, sf::RenderWi
     boardText.setString(displayText);
     window.draw(boardText);
 }
+//
+bool sortTimes(LeaderboardEntry const &entry1, LeaderboardEntry const &entry2){
+    return entry1.time.asSeconds() < entry2.time.asSeconds();
+}
+
+void updateLeaderboard(vector<LeaderboardEntry> &entries){
+    sort(entries.begin(), entries.end(), sortTimes);
+
+    // removing duplicates by checking for exact time & name
+    auto uniqueEnd = unique(entries.begin(), entries.end(), entryEquality);
+
+    entries.erase(uniqueEnd, entries.end());
+
+    for (int i = 0; i < entries.size(); i++){
+        cout << i + 1 << "." << entries[i].name << "\t" << entries[i].time.asSeconds() << endl;
+    }
+
+    // updating the leaderboard file w/ first 5 entries
+    ofstream leaderboardFile("files/leaderboard.txt");
+    if (!leaderboardFile.is_open()){
+        cout << "Leaderboard file didnt open :(" << endl;
+    } else {
+        for (int i = 0; i < 5; i++){
+            int minutes = entries[i].time.asSeconds() / 60;
+            int seconds = static_cast<int>(entries[i].time.asSeconds()) % 60;
+
+            leaderboardFile << (minutes < 10 ? "0" : "") << minutes << ":"
+                            << (seconds < 10 ? "0" : "") << seconds << ","
+                            << entries[i].name << endl;
+        }
+    }
+}
+
+void removeAsterisk(vector<LeaderboardEntry> &entries){
+    for (auto &entry : entries){
+        entry.name.erase(remove(entry.name.begin(), entry.name.end(), '*'), entry.name.end());
+    }
+}
+
+
 
 // Function to create a deep copy of a 2D vector
 vector<vector<Cell>> deepCopy(const std::vector<std::vector<Cell>>& original) {
@@ -569,6 +659,8 @@ int main() {
     sf::Texture digit = getTexture("digits");
     sf::Sprite digitSprite = makeSprite(digit, sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
 
+    sf::Sprite negativeSprite = makeSprite(digit, sf::Vector2f(12, 32 * (rowCount + 0.5) + 16));
+
     sf::Sprite timerSprite = makeSprite(digit, sf::Vector2f((colCount * 32) - 97, 32 * (rowCount + 0.5) + 16));
     sf::Sprite secondSprite = makeSprite(digit, sf::Vector2f((colCount * 32) - 54,32 * (rowCount + 0.5) + 16));
 
@@ -587,14 +679,19 @@ int main() {
     setText(leaderboardInput, leaderboardWidth / 2, (leaderboardHeight / 2) + 20);
     leaderboardInput.setStyle(sf::Text::Bold);
 
-    map<string, string> lMap;
-
+    vector<LeaderboardEntry> entries;
+    readLeaderboard(entries);
 
     sf::Clock clock;
     bool clockRunning = true;
     sf::Time startTime = clock.getElapsedTime();
     auto pauseTime = clock.getElapsedTime();
     auto elapsedPauseTime = clock.getElapsedTime().asSeconds() - pauseTime.asSeconds();
+
+    // This is to stop the leaderboard from updating with slightly different times
+    int winCount = 0;
+    // Conditional flag to check what the gameWindow should look like with paused board & leaderboardWindow open
+    bool lPopup = false;
 
 
     board.setMines();
@@ -603,8 +700,11 @@ int main() {
     vector<vector<Cell>> saveState;
     while (gameWindow.isOpen()) {
         sf::Event event;
-        int digit1 = board.getMines() / 10;
-        int digit2 = board.getMines() % 10;
+        int mineCounter = board.getMines() - board.countFlags();
+        // 3 digits for counter tracking number of mines
+        int digit1 = mineCounter / 10;
+        int digit2 = mineCounter % 10;
+        int digit0 = mineCounter / 100;
         while (gameWindow.pollEvent(event)) {
 
             if (event.type == sf::Event::Closed) {
@@ -616,7 +716,7 @@ int main() {
                                                                                                        gameWindow.getSize().y) ) {
                         sf::Vector2i mousePosition(event.mouseButton.x, event.mouseButton.y);
                         board.setFlag(mousePosition);
-                        board.setNumMines( numMines - board.countFlags());
+                        mineCounter = board.getMines() - board.countFlags();
                         board.drawBoard(gameWindow);
                     }
                 } else if (event.mouseButton.button == sf::Mouse::Left) {
@@ -628,12 +728,14 @@ int main() {
                             board.debug = !board.debug;
                             board.revealAllMines();
                         } else if (pauseButton.getGlobalBounds().contains(mousePosition)){
+                            if (board.checkLoss() || board.checkWin()){
+                                break;
+                            }
                             board.pause = !board.pause; // reflects if board is paused or playing
                             if(board.pause){
                                 saveState = deepCopy(board.grid);
                                 pauseButton.setTexture(play);
                                 pauseTime = clock.getElapsedTime();
-//                                board.pauseBoard();
                             } else {
                                 pauseButton.setTexture(pause);
                                 auto unpausedTime = clock.getElapsedTime();
@@ -642,24 +744,37 @@ int main() {
                             }
                         } else if (leaderboardButton.getGlobalBounds().contains(mousePosition)) {
                             sf::RenderWindow leaderboardWindow(sf::VideoMode(leaderboardWidth, leaderboardHeight), "Leaderboard", sf::Style::Close);
+                            pauseTime = clock.getElapsedTime();
                             while(leaderboardWindow.isOpen()){
                                 sf::Event leaderboardEvent;
                                 while (leaderboardWindow.pollEvent(leaderboardEvent)){
                                     if (leaderboardEvent.type == sf::Event::Closed){
+                                        auto unpausedTime = clock.getElapsedTime();
+                                        elapsedPauseTime += (unpausedTime - pauseTime).asSeconds();
                                         leaderboardWindow.close();
                                     }
                                 }
-                                readLeaderboard(lMap);
 
                                 leaderboardWindow.clear(sf::Color::Blue);
                                 leaderboardWindow.draw(leaderboardMain);
                                 setText(leaderboardInput, leaderboardWidth / 2, (leaderboardHeight / 2) + 20);
-                                drawLeaderboard(leaderboardInput, lMap, leaderboardWindow);
+
+                                drawLeaderboard(leaderboardInput,entries, leaderboardWindow);
                                 leaderboardWindow.display();
                             }
                         } else if (hFaceButton.getGlobalBounds().contains(mousePosition)){
                             board.resetBoard();
+                            board.setNumMines(numMines);
+                            board.initMines();
+                            clock.restart();
+
+                            // leaderboard makes this negative, want it to be 0 for reset
+                            elapsedPauseTime = 0;
                             board.pause = false;
+                            board.win = false;
+                            board.loss = false;
+                            board.debug = false;
+                            winCount = 0;
                         }
                         else {
                             board.drawCellNumber(mousePosition, numberTexture, gameWindow);
@@ -667,22 +782,54 @@ int main() {
                     }
                 }
             }
-            if (board.checkWin()){
-                hFaceButton.setTexture(faceWin);
-                board.winState();
-                clock.restart();
-            } else if (board.checkLoss()) {
-                hFaceButton.setTexture(faceLose);
-            } else {
-                    hFaceButton.setTexture(happyFace);
-                }
+        }
+        if (board.checkWin()){
+            hFaceButton.setTexture(faceWin);
+
+            board.winState();
+            readLeaderboard(entries);
+            cout << "Read Leaderboard" << endl;
+
+            sf::Time winTime = clock.getElapsedTime() - pauseTime;
+            LeaderboardEntry e;
+            // ensures we only update once, and not while the window is open
+            if (winCount < 1){
+                lPopup = true;
+                removeAsterisk(entries);
+                e.time = winTime;
+                e.name = userName.getString() + '*';
+                entries.push_back(e);
+                updateLeaderboard(entries);
             }
+            winCount ++;
+            pauseTime = clock.getElapsedTime();
+            board.pause = true;
+        } else if (board.checkLoss()) {
+            hFaceButton.setTexture(faceLose);
+            board.pause = true;
+            board.lossState();
+        } else {
+            hFaceButton.setTexture(happyFace);
+        }
         gameWindow.clear(sf::Color::White);
 
         digitSprite.setPosition(sf::Vector2f(33, 32 * (rowCount + 0.5) + 16));
+        negativeSprite.setPosition(sf::Vector2f(12, 32 * (rowCount + 0.5) + 16));
+
         timerSprite.setPosition(sf::Vector2f((colCount * 32) - 97, 32 * (rowCount + 0.5) + 16));
         secondSprite.setPosition(sf::Vector2f((colCount * 32) - 54,32 * (rowCount + 0.5) + 16));
 
+        if (mineCounter < 0){
+            negativeSprite.setTextureRect(sf::IntRect(10 * 21, 0, 21, 32));
+            gameWindow.draw(negativeSprite);
+            digit0 = -digit0;
+            digit1 = -digit1;
+            digit2 = -digit2;
+        }
+        digitSprite.setTextureRect(sf::IntRect(digit0 * 21, 0, 21, 32));
+        gameWindow.draw(digitSprite);
+
+        digitSprite.move(21, 0);
 
         digitSprite.setTextureRect(sf::IntRect(digit1 * 21, 0, 21, 32));
         gameWindow.draw(digitSprite);
@@ -704,7 +851,9 @@ int main() {
             seconds = static_cast<int>(totalElapsedTime) % 60;
             minutes = totalElapsedTime / 60;
         } else {
-            board.pauseBoard();
+            if (!board.checkWin() && !board.checkLoss()){
+                board.pauseBoard();
+            }
         }
 
         // Now we separate the seconds into ones & tens place
@@ -738,6 +887,29 @@ int main() {
 
         board.drawBoard(gameWindow);
         gameWindow.display();
+
+        if(lPopup){
+            sf::RenderWindow leaderboardWindow(sf::VideoMode(leaderboardWidth, leaderboardHeight), "Leaderboard", sf::Style::Close);
+            while(leaderboardWindow.isOpen()){
+                sf::Event leaderboardEvent;
+                while (leaderboardWindow.pollEvent(leaderboardEvent)){
+                    if (leaderboardEvent.type == sf::Event::Closed){
+                        auto unpausedTime = clock.getElapsedTime();
+                        elapsedPauseTime += (unpausedTime - pauseTime).asSeconds();
+                        leaderboardWindow.close();
+                        lPopup = false;
+                        break;
+                    }
+                }
+
+                leaderboardWindow.clear(sf::Color::Blue);
+                leaderboardWindow.draw(leaderboardMain);
+                setText(leaderboardInput, leaderboardWidth / 2, (leaderboardHeight / 2) + 20);
+
+                drawLeaderboard(leaderboardInput,entries, leaderboardWindow);
+                leaderboardWindow.display();
+            }
+        }
     }
 }
 
