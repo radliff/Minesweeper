@@ -4,6 +4,7 @@
 #include <SFML/Graphics.hpp>
 #include <random>
 #include <algorithm>
+#include <cmath>
 #include "minesweeper.h"
 
 using namespace std;
@@ -302,6 +303,9 @@ void Board::floodFill(sf::Vector2f &coordinates, sf::RenderWindow &window, vecto
 }
 
 void Board::revealAllMines() {
+    if (pause){
+        return;
+    }
     for (int i = 0; i < _rows; i++){
         for (int j = 0; j < _cols; j++){
             if(grid[i][j].hasMine && !grid[i][j]._revealed){
@@ -524,7 +528,7 @@ void removeAsterisk(vector<LeaderboardEntry> &entries){
 
 
 
-// Function to create a deep copy of a 2D vector
+// creating a savestate for the board to return to when we resume
 vector<vector<Cell>> deepCopy(const std::vector<std::vector<Cell>>& original) {
     return vector<vector<Cell>>(original.begin(), original.end());
 }
@@ -682,11 +686,13 @@ int main() {
     vector<LeaderboardEntry> entries;
     readLeaderboard(entries);
 
+    bool leaderboardPaused = false;
+
     sf::Clock clock;
     bool clockRunning = true;
     sf::Time startTime = clock.getElapsedTime();
-    auto pauseTime = clock.getElapsedTime();
-    auto elapsedPauseTime = clock.getElapsedTime().asSeconds() - pauseTime.asSeconds();
+    auto pauseTime = sf::Time::Zero;
+    float elapsedPauseTime = 0;
 
     // This is to stop the leaderboard from updating with slightly different times
     int winCount = 0;
@@ -744,13 +750,17 @@ int main() {
                             }
                         } else if (leaderboardButton.getGlobalBounds().contains(mousePosition)) {
                             sf::RenderWindow leaderboardWindow(sf::VideoMode(leaderboardWidth, leaderboardHeight), "Leaderboard", sf::Style::Close);
-                            pauseTime = clock.getElapsedTime();
+                            leaderboardPaused = !leaderboardPaused;
+                            sf::Clock lClock;
                             while(leaderboardWindow.isOpen()){
                                 sf::Event leaderboardEvent;
                                 while (leaderboardWindow.pollEvent(leaderboardEvent)){
                                     if (leaderboardEvent.type == sf::Event::Closed){
-                                        auto unpausedTime = clock.getElapsedTime();
-                                        elapsedPauseTime += (unpausedTime - pauseTime).asSeconds();
+                                        auto lPause = lClock.getElapsedTime();
+                                        // adding up the amount of time for the leaderboard "pause" & actual pause time
+                                        if(!board.pause){
+                                            elapsedPauseTime += (lPause).asSeconds();
+                                        }
                                         leaderboardWindow.close();
                                     }
                                 }
@@ -841,14 +851,14 @@ int main() {
         gameWindow.draw(digitSprite);
 
         auto gameDuration = clock.getElapsedTime().asSeconds() - startTime.asSeconds();
-        int totalElapsedTime = gameDuration;
+        float totalElapsedTime = gameDuration;
 
         int minutes;
         int seconds;
 
         if (!board.pause){
             totalElapsedTime -= elapsedPauseTime;
-            seconds = static_cast<int>(totalElapsedTime) % 60;
+            seconds = static_cast<int>(lround(totalElapsedTime)) % 60;
             minutes = totalElapsedTime / 60;
         } else {
             if (!board.checkWin() && !board.checkLoss()){
